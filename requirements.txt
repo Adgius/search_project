@@ -1,0 +1,8 @@
+langdetect==1.0.8
+numpy
+torch
+nltk==3.5
+fastapi==0.115.6
+jupyterlab
+elasticsearch==8.17.0
+polars==1.18.0
