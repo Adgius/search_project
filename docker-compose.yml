@@ -40,12 +40,12 @@ services:
         environment:
             KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: DOCKER_INTERNAL:PLAINTEXT,DOCKER_EXTERNAL:PLAINTEXT
             KAFKA_LISTENERS: DOCKER_INTERNAL://:29092,DOCKER_EXTERNAL://:9092
-            KAFKA_ADVERTISED_LISTENERS: DOCKER_INTERNAL://kafka:29092,DOCKER_EXTERNAL://kafka:9092
+            KAFKA_ADVERTISED_LISTENERS: DOCKER_INTERNAL://kafka:29092,DOCKER_EXTERNAL://${HOST_IP:-localhost}:9092
             KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER_INTERNAL
             KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
             KAFKA_BROKER_ID: 1
             KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-            KAFKA_CREATE_TOPICS: "search_terms:1:1" 
+            KAFKA_CREATE_TOPICS: "search_terms:1:1, question_base:1:1" 
         ports:
             - "9092:9092"
         healthcheck:
@@ -74,8 +74,8 @@ services:
     kafka-exporter:
         image: danielqsj/kafka-exporter:latest
         environment:
-            KAFKA_SERVER: kafka:9092
-        command: ["--kafka.server=kafka:9092", "--zookeeper.server=zookeeper:2181"]
+            KAFKA_SERVER: kafka:29092
+        command: ["--kafka.server=kafka:29092", "--zookeeper.server=zookeeper:2181"]
         ports:
             - "9308:9308"
         depends_on:
@@ -83,10 +83,93 @@ services:
                 condition: service_healthy
         networks:
             - backend
+            
+    kafka-connect:
+        image: confluentinc/cp-kafka-connect-base:6.0.0
+        container_name: kafka-connect
+        platform: linux/amd64
+        depends_on:
+            - zookeeper
+            - kafka
+        ports:
+            - 8083:8083
+        environment:
+            CONNECT_BOOTSTRAP_SERVERS: "kafka:29092"
+            CONNECT_REST_PORT: 8083
+            CONNECT_GROUP_ID: kafka-connect
+            CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+            CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+            CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+            CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+            CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+            CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+            CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+            CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+            CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+            CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+            CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
+            CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+            CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+            CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+            CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components,/data/connect-jars
+        volumes:
+            - ./kafka-connect-data:/data
+        command:
+            - /bin/bash
+            - -c
+            - |
+                echo "Installing Connector"
+                confluent-hub install --no-prompt confluentinc/kafka-connect-elasticsearch:10.0.1
+                #
+                echo "Launching Kafka Connect worker"
+                /etc/confluent/docker/run &
+                #
+                sleep infinity
+        networks:
+            - backend
 
+    setup-kafka-connect:
+        container_name: setup-kafka-connect
+        image: curlimages/curl:latest
+        depends_on:
+            - kafka-connect
+        entrypoint: >
+            /bin/sh -c "
+                echo 'Waiting for Kafka Connect to start...';
+                sleep 10;
+                curl -X POST -H 'Content-Type: application/json' --data '{
+                \"name\": \"elasticsearch-sink\",
+                \"config\": {
+                    \"connector.class\": \"io.confluent.connect.elasticsearch.ElasticsearchSinkConnector\",
+                    \"tasks.max\": \"1\",
+                    \"type.name\": \"_doc\",
+                    \"topics\": \"question_base\",
+                    \"key.ignore\": \"true\",
+                    \"schema.ignore\": \"true\",
+                    \"key.converter\": \"org.apache.kafka.connect.storage.StringConverter\",
+                    \"value.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
+                    \"value.converter.schemas.enable\": \"false\",
+                    \"connection.url\": \"http://elasticsearch:9200\"
+                }
+                }' http://kafka-connect:8083/connectors;
+                "
+        networks:
+            - backend
+
+    kafka-connect-ui:
+        image: landoop/kafka-connect-ui
+        restart: always
+        depends_on:
+            - kafka-connect
+        ports:
+            - "8000:8000"
+        environment:
+            CONNECT_URL: http://kafka-connect:8083
+        networks:
+            - backend
     ### ELK ###
     elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.17.25
         container_name: elasticsearch
         environment:
             ELASTIC_PASSWORD: elastic_password
@@ -110,7 +193,7 @@ services:
             - backend
 
     kibana:
-        image: docker.elastic.co/kibana/kibana:8.10.2
+        image: docker.elastic.co/kibana/kibana:7.17.25
         container_name: kibana
         depends_on:
             - elasticsearch

@@ -6,3 +6,4 @@ fastapi==0.115.6
 jupyterlab
 elasticsearch==8.17.0
 polars==1.18.0
+kafka-python==2.0.2
