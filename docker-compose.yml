@@ -266,3 +266,17 @@ services:
                 restart: true
         networks:
             - backend
+
+    ml-service:
+        build: ./ml_service
+        container_name: ml-service
+        restart: always
+        environment:
+            EMB_PATH_GLOVE: "./artifacts/glove.6B.50d.txt"
+            EMB_PATH_KNRM: "./artifacts/embeddings.bin"
+            MLP_PATH: "./artifacts/knrm_mlp.bin"
+            VOCAB_PATH: "./artifacts/vocab.json"
+        networks:
+            - backend
+        volumes:
+            - ./ml_service/artifacts:/usr/src/app/artifacts
