@@ -44,14 +44,14 @@ def pipeline(query):
 def process_message(message):
     global redis
 
-    request_id = message.value['index']
+    request_id = message.value['request_id']
     query = message.value['question']
 
     result = pipeline(query)
 
     # Save the results to Redis and publish to the Pub/Sub channel
     result_data = json.dumps(result)
-    redis.set(request_id, result_data, ex=300)  # TTL = 5 minutes
+    redis.set(query, result_data, ex=300)  # TTL = 5 minutes
     redis.publish(request_id, result_data)  # Publish the result to the channel
 
 

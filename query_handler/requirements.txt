@@ -1,0 +1,5 @@
+fastapi[all]
+aioredis==2.0.1
+redis==5.2.1
+kafka-python==2.0.2
+langdetect==1.0.9

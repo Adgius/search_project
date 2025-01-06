@@ -9,7 +9,8 @@ import logging
 from typing import Dict, List, Tuple, Callable
 from model import KNRM
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class MLService:
     def __init__(self,
@@ -85,7 +86,7 @@ class RankingDataset(torch.utils.data.Dataset):
         self.max_len = max_len
 
     def __len__(self):
-        return len(candidates)
+        return len(self.candidates)
 
     def _tokenized_text_to_index(self, tokenized_text: List[str]) -> List[int]:
         res = [self.vocab.get(i, self.oov_val) for i in tokenized_text]
