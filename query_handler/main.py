@@ -9,8 +9,6 @@ from kafka import KafkaProducer
 from langdetect import detect
 from redis import asyncio as aioredis
 
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
 
 logging.basicConfig(
     level=logging.INFO,
