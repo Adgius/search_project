@@ -4,6 +4,8 @@
 This project is a distributed system designed to handle search queries using Apache Kafka, Elasticsearch, and an ML-based ranking service. The architecture is containerized using Docker and orchestrated with Docker Compose.
 
 ## Architecture
+![image](https://github.com/user-attachments/assets/2bbbbfbe-57d3-42ab-80fb-90a16b44dbfa)
+
 ### Key Components:
 1. **Kafka Cluster**
     - **Zookeeper**: Manages Kafka cluster metadata.
@@ -124,9 +126,6 @@ This project is a distributed system designed to handle search queries using Apa
 - `EMB_PATH_KNRM`: Path to KNRM embeddings.
 - `MLP_PATH`: Path to the MLP model.
 - `VOCAB_PATH`: Path to the vocabulary JSON.
-
-#### Elasticsearch:
-- `ELASTIC_PASSWORD`: Password for Elasticsearch.
 
 ### Data Flow
 1. **Data Initialization**: The `on_start` service downloads the QQP dataset, processes it, and loads it into Kafka and Elasticsearch.
